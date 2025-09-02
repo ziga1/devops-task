@@ -1,0 +1,10 @@
+[mysqld]
+# Send error log to container stderr so `podman logs` works
+log_error=stderr
+
+# Make sure the server listens inside container networking
+bind-address=0.0.0.0
+
+# Recommended InnoDB settings for containers
+innodb_buffer_pool_size=128M
+innodb_log_file_size=64M
