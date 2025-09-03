@@ -1,0 +1,69 @@
+image: quay.io/buildah/stable
+
+variables:
+  BUILDAH_ISOLATION: chroot
+  BUILDAH_FORMAT: docker
+
+stages: [build]
+
+.before_login: &before_login
+  - echo "Logging into $CI_REGISTRY as $CI_REGISTRY_USER"
+  - buildah login -u "$CI_REGISTRY_USER" -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
+
+.set_tags: &set_tags
+  - export SHA_TAG="$CI_COMMIT_SHORT_SHA"
+  - |
+    if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ]; then
+      export LATEST_TAG="latest"
+    fi
+
+build-mysql:
+  stage: build
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_TAG
+  script:
+    - *before_login
+    - *set_tags
+    - buildah bud -t "$CI_REGISTRY_IMAGE/mysql:$SHA_TAG" mysql
+    - buildah push "$CI_REGISTRY_IMAGE/mysql:$SHA_TAG"
+    - |
+      if [ -n "$LATEST_TAG" ]; then
+        buildah tag "$CI_REGISTRY_IMAGE/mysql:$SHA_TAG" "$CI_REGISTRY_IMAGE/mysql:$LATEST_TAG"
+        buildah push "$CI_REGISTRY_IMAGE/mysql:$LATEST_TAG"
+      fi
+
+build-phpfpm:
+  stage: build
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_TAG
+  script:
+    - *before_login
+    - *set_tags
+    - buildah bud -t "$CI_REGISTRY_IMAGE/php-fpm:$SHA_TAG" php-fpm
+    - buildah push "$CI_REGISTRY_IMAGE/php-fpm:$SHA_TAG"
+    - |
+      if [ -n "$LATEST_TAG" ]; then
+        buildah tag "$CI_REGISTRY_IMAGE/php-fpm:$SHA_TAG" "$CI_REGISTRY_IMAGE/php-fpm:$LATEST_TAG"
+        buildah push "$CI_REGISTRY_IMAGE/php-fpm:$LATEST_TAG"
+      fi
+
+build-nginx:
+  stage: build
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_TAG
+  script:
+    - *before_login
+    - *set_tags
+    - buildah bud -t "$CI_REGISTRY_IMAGE/nginx:$SHA_TAG" nginx
+    - buildah push "$CI_REGISTRY_IMAGE/nginx:$SHA_TAG"
+    - |
+      if [ -n "$LATEST_TAG" ]; then
+        buildah tag "$CI_REGISTRY_IMAGE/nginx:$SHA_TAG" "$CI_REGISTRY_IMAGE/nginx:$LATEST_TAG"
+        buildah push "$CI_REGISTRY_IMAGE/nginx:$LATEST_TAG"
+      fi
