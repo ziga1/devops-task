@@ -24,7 +24,7 @@ echo "==> Installing Podman and helpers…"
 sudo dnf -y install \
   podman podman-compose \
   slirp4netns fuse-overlayfs aardvark-dns \
-  uidmap shadow-utils \
+  shadow-utils \
   curl jq procps-ng >/dev/null
 
 # Basic tools we rely on:
