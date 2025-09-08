@@ -28,6 +28,6 @@ smoke:
 	@echo "==> Title from .env"
 	@curl -ks https://127.0.0.1/ | grep -q "App title from ENV: $(shell grep ^APP_TITLE= .env | cut -d= -f2)" && echo "PASS: title matches" || (echo "FAIL: title mismatch"; exit 1)
 	@echo "==> Events present"
-	@curl -ks https://127.0.0.1/ | grep -Eq "Team meeting|Doctor appointment" && echo "PASS: events visible" || (echo "FAIL: events not found"; exit 1)
+	@curl -ks "https://127.0.0.1/events.php" | grep -q '"id"' && echo "PASS: events visible" || (echo "FAIL: events not found"; exit 1)
 	@echo "==> Network DNS"
 	@podman exec -it phpfpm getent hosts devdb >/dev/null && echo "PASS: phpfpm can resolve devdb" || (echo "FAIL: phpfpm cannot resolve devdb"; exit 1)
