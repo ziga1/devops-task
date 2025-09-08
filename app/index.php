@@ -1,5 +1,4 @@
 <?php
-// Read ENV variables (with defaults for safety)
 $dbHost = getenv('DB_HOST') ?: '127.0.0.1';
 $dbName = getenv('DB_NAME') ?: 'appdb';
 $dbUser = getenv('DB_USER') ?: 'appuser';

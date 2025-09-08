@@ -1,9 +1,9 @@
-version: "3.8"
-
 services:
   devdb:
     image: localhost/devops-mysql:local
     container_name: devdb
+    security_opt:
+      - label=disable
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
       MYSQL_DATABASE: ${DB_NAME:-appdb}
@@ -16,9 +16,11 @@ services:
     image: localhost/devops-php-fpm:local
     container_name: phpfpm
     depends_on: [devdb]
+    security_opt:
+      - label=disable
     environment:
       APP_TITLE: ${APP_TITLE:-MyDevOpsApp}
-      DB_HOST: devdb
+      DB_HOST: ${DB_HOST:-devdb}
       DB_NAME: ${DB_NAME:-appdb}
       DB_USER: ${DB_USER:-appuser}
       DB_PASS: ${DB_PASS:-apppass}
@@ -29,8 +31,10 @@ services:
     image: localhost/devops-nginx:local
     container_name: nginx
     depends_on: [phpfpm]
+    security_opt:
+      - label=disable
     ports:
-      - "443:443"            # you already enabled low ports via sysctl
+      - "443:443"
     volumes:
       - ./app:/var/www/html:z
 

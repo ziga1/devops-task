@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: devops-stack-v2
+spec:
+  containers:
+    - name: devdb
+      image: registry.gitlab.com/test-group424736/ziga1-devops-project/mysql:latest
+      env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: "rootpass"
+        - name: MYSQL_DATABASE
+          value: "appdb"
+        - name: MYSQL_USER
+          value: "appuser"
+        - name: MYSQL_PASSWORD
+          value: "apppass"
+      volumeMounts:
+        - mountPath: /var/lib/mysql
+          name: mysqldata
+      # 🚫 No ports exposed here, DB stays internal
+
+    - name: phpfpm
+      image: registry.gitlab.com/test-group424736/ziga1-devops-project/php-fpm:latest
+      env:
+        - name: APP_TITLE
+          value: "AstridApp"
+        - name: DB_NAME
+          value: "appdb"
+        - name: DB_USER
+          value: "appuser"
+        - name: DB_HOST
+          value: "devdb"
+        - name: DB_PASS
+          value: "apppass"
+      volumeMounts:
+        - mountPath: /var/www/html
+          name: appsrc
+      # 🚫 No ports exposed here either
+
+    - name: nginx
+      image: registry.gitlab.com/test-group424736/ziga1-devops-project/nginx:latest
+      ports:
+        - containerPort: 443
+          hostPort: 443    # ✅ Only nginx binds host port
+      volumeMounts:
+        - mountPath: /var/www/html
+          name: appsrc
+        - mountPath: /etc/nginx/certs
+          name: tlscerts
+
+  volumes:
+    - name: mysqldata
+      emptyDir: {}
+    - name: appsrc
+      hostPath:
+        path: ./app
+    - name: tlscerts
+      hostPath:
+        path: ./nginx/certs
