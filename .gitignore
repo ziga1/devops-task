@@ -28,3 +28,9 @@ Thumbs.db
 
 # local kube secret (not tracked)
 kube/secret.yaml
+
+# editor/backup cruft
+*.bak
+*.bak.*
+*.bak*/
+*~
