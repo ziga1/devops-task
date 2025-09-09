@@ -37,6 +37,7 @@ services:
       - "443:443"
     volumes:
       - ./app:/var/www/html:z
+      - ./nginx/certs:/etc/nginx/certs:Z
 
 volumes:
   mysqldata:

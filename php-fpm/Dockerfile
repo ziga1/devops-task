@@ -1,27 +1,19 @@
-FROM registry.access.redhat.com/ubi9/ubi
+# ubi9 + php-fpm; logs go to stdout/stderr; listen on 0.0.0.0:9000
+FROM registry.access.redhat.com/ubi9/ubi:9.4
 
-RUN dnf -y upgrade --refresh \
- && dnf -y module enable php:8.2 \
- && dnf -y install \
-      php-fpm php-cli php-common php-mysqlnd php-opcache \
-      php-json php-xml php-mbstring php-gd \
- && dnf clean all
+# php 8.2 stream (adjust only if your current stream differs)
+RUN microdnf -y module enable php:8.2 \
+ && microdnf -y install php php-fpm php-mysqlnd php-pdo php-cli php-gd php-json php-mbstring php-xml unzip \
+ && microdnf clean all
 
-# copy configs
-COPY conf/99-custom.ini /etc/php.d/99-custom.ini
-COPY conf/php-fpm.conf /etc/php-fpm.conf
-COPY conf/www.conf /etc/php-fpm.d/www.conf
+# Configs
+COPY conf/php-fpm.conf        /etc/php-fpm.conf
+COPY conf/www.conf            /etc/php-fpm.d/www.conf
+COPY conf/99-custom.ini       /etc/php.d/99-custom.ini
 
-EXPOSE 9000
-
-# create runtime dirs (still as root)
-RUN mkdir -p /run/php-fpm && chown -R 1001:0 /run/php-fpm /var/log \
- && chmod -R g=u /run/php-fpm /var/log
-
-# **validate config BEFORE switching user**
+# Validating config at build time
 RUN php-fpm -t
 
-# drop privileges for runtime
-USER 1001
-
-CMD ["php-fpm", "-F"]
+EXPOSE 9000
+# Foreground so container stays up
+CMD ["php-fpm","-F","-O"]

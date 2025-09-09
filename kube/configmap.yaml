@@ -1,3 +1,4 @@
+# non-secret application settings (consumed by php-fpm/nginx)
 apiVersion: v1
 kind: ConfigMap
 metadata:

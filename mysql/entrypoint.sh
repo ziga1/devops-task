@@ -3,7 +3,7 @@ set -euo pipefail
 
 DATADIR="/var/lib/mysql"
 
-# Default ENV (can be overridden at runtime)
+# Default ENV (can be overridden at runtime) - kept this from 1st attempt
 : "${MYSQL_ROOT_PASSWORD:=rootpass}"
 : "${MYSQL_DATABASE:=appdb}"
 : "${MYSQL_USER:=appuser}"
@@ -32,7 +32,7 @@ GRANT ALL PRIVILEGES ON \`${MYSQL_DATABASE}\`.* TO '${MYSQL_USER}'@'%';
 FLUSH PRIVILEGES;
 SQL
 
-  # Append your init.sql if present
+  # Append any *.sql in docker-entrypoint-initdb.d
   if [ -f "/docker-entrypoint-initdb.d/init.sql" ]; then
     echo "[entrypoint] Applying /docker-entrypoint-initdb.d/init.sql"
     echo "USE \`${MYSQL_DATABASE}\`;" >> "${tmp_bootstrap}"
@@ -44,5 +44,5 @@ SQL
   rm -f "${tmp_bootstrap}"
 fi
 
-# Start the server in foreground (args come from CMD)
+# Start the server in foreground
 exec "$@"

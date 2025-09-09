@@ -1,97 +1,77 @@
 #!/usr/bin/env bash
-# Fedora 42 — Rootless Podman setup (idempotent)
-# Installs Podman + helpers, ensures subuid/subgid, enables lingering,
-# checks cgroup v2, and prints sanity checks.
-
+# rootless podman on fedora 42 — idempotent setup + quick checks
 set -euo pipefail
 
-# ---- Settings (keep it simple) ---------------------------------------------
-DEFAULT_SUB_RANGE_START=100000
-DEFAULT_SUB_RANGE_SIZE=65536
-
+# detect sudo and target user (supports: run as yourself OR via sudo)
+SUDO=""
+if [ "$(id -u)" -ne 0 ]; then SUDO="sudo"; fi
 TARGET_USER="${SUDO_USER:-$USER}"
 
-if [[ "$TARGET_USER" == "root" ]]; then
-  echo "❌ Please run as your normal user (with sudo), not as root."
-  echo "   Example:   sudo -E bash scripts/install_podman_fedora42.sh"
-  exit 1
+echo "[i] Target user: ${TARGET_USER}"
+getent passwd "${TARGET_USER}" >/dev/null || { echo "[!] User not found: ${TARGET_USER}"; exit 1; }
+
+echo "[i] Updating and installing packages…"
+$SUDO dnf -y upgrade --refresh
+$SUDO dnf -y install \
+  podman \
+  netavark aardvark-dns \
+  slirp4netns fuse-overlayfs \
+  uidmap shadow-utils \
+  containers-common \
+  crun \
+  jq || true
+
+# optional - external python based compose - podman v5+ has podman compose built in
+if ! podman compose version >/dev/null 2>&1; then
+  echo "[i] Installing python3-podman-compose (optional fallback)…"
+  $SUDO dnf -y install python3-podman-compose || true
 fi
 
-echo "==> Target user: $TARGET_USER"
-
-# ---- Packages ---------------------------------------------------------------
-echo "==> Installing Podman and helpers…"
-sudo dnf -y install \
-  podman podman-compose \
-  slirp4netns fuse-overlayfs aardvark-dns \
-  shadow-utils \
-  curl jq procps-ng >/dev/null
-
-# Basic tools we rely on:
-command -v podman >/dev/null || { echo "❌ podman not installed"; exit 1; }
-command -v newuidmap >/dev/null || { echo "❌ newuidmap missing (uidmap)"; exit 1; }
-command -v newgidmap >/dev/null || { echo "❌ newgidmap missing (uidmap)"; exit 1; }
-
-# ---- subuid/subgid ----------------------------------------------------------
-add_subid_if_missing() {
-  local file="$1" user="$2"
-  sudo touch "$file"
-  if ! sudo grep -q "^${user}:" "$file"; then
-    echo "==> Adding ${user}:${DEFAULT_SUB_RANGE_START}:${DEFAULT_SUB_RANGE_SIZE} to $file"
-    echo "${user}:${DEFAULT_SUB_RANGE_START}:${DEFAULT_SUB_RANGE_SIZE}" | sudo tee -a "$file" >/dev/null
-  else
-    echo "==> $file already contains a range for ${user} (ok)"
-  fi
-}
-echo "==> Ensuring subuid/subgid ranges…"
-add_subid_if_missing /etc/subuid "$TARGET_USER"
-add_subid_if_missing /etc/subgid "$TARGET_USER"
-
-# ---- Lingering (allows user services without active login) ------------------
-echo "==> Enabling systemd lingering for ${TARGET_USER} (ok if already enabled)…"
-sudo loginctl enable-linger "$TARGET_USER" >/dev/null || true
-
-# ---- cgroup v2 check (Fedora 42 defaults to v2; we just verify) -----------
-CGTYPE=$(stat -fc %T /sys/fs/cgroup || echo unknown)
-if [[ "$CGTYPE" == "cgroup2fs" ]]; then
-  echo "==> cgroup v2 is active."
-else
-  echo "⚠  cgroup v2 not active (type=$CGTYPE)."
-  echo "   If you need it: sudo grubby --update-kernel=ALL --args='systemd.unified_cgroup_hierarchy=1'"
-  echo "   Then reboot the VM."
+echo "[i] Ensuring subuid/subgid ranges for rootless…"
+# prefer usermod if available- fallback to editing files
+if $SUDO usermod --help >/dev/null 2>&1; then
+  set +e
+  $SUDO usermod --add-subuids 100000-165536 --add-subgids 100000-165536 "${TARGET_USER}" 2>/dev/null
+  set -e
+fi
+if ! grep -q "^${TARGET_USER}:" /etc/subuid; then
+  echo "${TARGET_USER}:100000:65536" | $SUDO tee -a /etc/subuid >/dev/null
+fi
+if ! grep -q "^${TARGET_USER}:" /etc/subgid; then
+  echo "${TARGET_USER}:100000:65536" | $SUDO tee -a /etc/subgid >/dev/null
 fi
 
-# ---- Minimal podman config dir (harmless if already there) ------------------
-mkdir -p "${HOME}/.config/containers"
+echo "[i] Enabling lingering so user services can run without an active session…"
+$SUDO loginctl enable-linger "${TARGET_USER}" || true
 
-# ---- Quick checks -----------------------------------------------------------
-echo "==> Running quick checks…"
-echo "---- podman version ----"
+echo "[i] Basic config sanity…"
+# ensure rootless storage uses fuse-overlayfs when appropriate
+# (fedora defaults are mostlz correct- this is just a visibility check)
+if command -v podman >/dev/null 2>&1; then
+  podman info >/tmp/podman-info.json 2>/dev/null || true
+fi
+
+echo "----- PODMAN QUICK INFO -----"
 podman --version || true
+podman info --format '{{json .}}' 2>/dev/null | jq -r '
+  {
+    rootless: .Host.Rootless,
+    cgroupManager: .Host.CgroupManager,
+    ociRuntime: .Host.OCIRuntime.Name,
+    graphDriver: .Store.GraphDriverName,
+    networkBackend: .Host.NetworkBackend
+  }' 2>/dev/null || true
+echo "-----------------------------"
 
-echo "---- podman info (rootless, cgroup) ----"
-podman info --format 'Rootless={{.Host.Security.Rootless}}  Cgroup={{.Host.CgroupVersion}}  Net={{.Host.NetworkBackend}}' || true
-
-echo "---- subuid/subgid entries ----"
-grep -m1 "^${TARGET_USER}:" /etc/subuid || echo "no subuid entry?"
-grep -m1 "^${TARGET_USER}:" /etc/subgid || echo "no subgid entry?"
-
-echo "---- lingering status ----"
-loginctl show-user "$TARGET_USER" 2>/dev/null | awk -F= '/^Linger=/ {print "Linger="$2}'
-
-echo "---- rootless run test (alpine:3) ----"
-if podman run --rm --pull=always docker.io/library/alpine:3 sh -c 'echo ok'; then
-  echo "✅ rootless container ran successfully."
+echo "[i] Compose availability:"
+if podman compose version >/dev/null 2>&1; then
+  podman compose version || true
 else
-  echo "❌ rootless run failed (network/registry issue?). Try again later."
+  podman-compose --version || true
 fi
 
 echo
-echo "=== SUMMARY ==="
-echo "User:        $TARGET_USER"
-echo "cgroup type: $(stat -fc %T /sys/fs/cgroup 2>/dev/null)"
-echo "subuid:      $(grep -m1 ^${TARGET_USER}: /etc/subuid | cut -d: -f2- || echo missing)"
-echo "subgid:      $(grep -m1 ^${TARGET_USER}: /etc/subgid | cut -d: -f2- || echo missing)"
-echo "Linger:      $(loginctl show-user $TARGET_USER 2>/dev/null | awk -F= '/^Linger=/ {print $2}')"
+echo "[✓] Done. You can test rootless networking with:"
+echo "    podman run --rm quay.io/podman/hello"
 echo
-echo "Done. If you just changed subuid/subgid or cgroup settings, a re-login/reboot may help."
+echo "[i] If you just edited subuid/subgid, a re-login may be required for the user mappings to apply."

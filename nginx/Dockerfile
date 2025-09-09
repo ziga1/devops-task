@@ -1,19 +1,19 @@
-FROM registry.access.redhat.com/ubi9/ubi
+# ubi9 + nginx - logs handled via. nginx conf. (stdout/stderr)
+FROM registry.access.redhat.com/ubi9/ubi:9.4
 
-# Install nginx and openssl (for TLS at runtime if needed)
-RUN dnf -y upgrade --refresh \
- && dnf -y install nginx openssl \
- && dnf clean all
+RUN microdnf -y install nginx curl && microdnf clean all
 
-# Configs
+# Core configs
 COPY conf/nginx.conf /etc/nginx/nginx.conf
-COPY conf/app.conf    /etc/nginx/conf.d/app.conf
+COPY conf/app.conf   /etc/nginx/conf.d/app.conf
 
-# Dev TLS certs (self-signed) copied into image
-COPY certs/dev.crt /etc/nginx/certs/dev.crt
-COPY certs/dev.key /etc/nginx/certs/dev.key
+# Certs are mounted at trigger (not committed)
+RUN mkdir -p /etc/nginx/certs
 
-EXPOSE 80 443
+# Ensure runtime directories exist
+RUN mkdir -p /var/cache/nginx /var/run && \
+    chown -R root:root /var/cache/nginx /var/run
 
-# Run nginx in foreground so container stays up
-CMD ["nginx", "-g", "daemon off;"]
+EXPOSE 443
+STOPSIGNAL SIGQUIT
+CMD ["nginx","-g","daemon off;"]
