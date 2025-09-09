@@ -11,7 +11,6 @@
   } else {
       date_default_timezone_set("UTC");
       if ($_SESSION["login_expiration"] != date("Y-m-d")) {
-          // var_dump($is_admin); // (optional: remove in production)
           session_destroy();
           header("Location: login.php");
           exit;
