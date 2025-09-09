@@ -2,11 +2,11 @@ COMPOSE ?= podman compose -f docker-compose.yml
 
 .PHONY: up down logs ps restart-nginx restart-phpfpm restart-db build-nginx build-phpfpm build-mysql smoke
 
-# Start services (no rebuild)
+# start services (no rebuild)
 up:
 	$(COMPOSE) up -d
 
-# Stop services (keeps volumes)
+# stop services (keeps volumes)
 down:
 	$(COMPOSE) down
 
@@ -16,7 +16,7 @@ logs:
 ps:
 	$(COMPOSE) ps
 
-# Rebuild single service images if you changed Dockerfiles
+# rebuild single service images if you changed dockerfiles
 build-nginx:
 	podman build -t localhost/devops-nginx:local ./nginx
 
@@ -26,7 +26,7 @@ build-phpfpm:
 build-mysql:
 	podman build -t localhost/devops-mysql:local ./mysql
 
-# Quick restarts
+# quick restarts
 restart-nginx:
 	podman restart nginx
 
@@ -36,7 +36,7 @@ restart-phpfpm:
 restart-db:
 	podman restart devdb
 
-# Minimal smoke test (no side effects)
+# minimal smoke test
 smoke:
 	@echo "==> HTTPS status (expect 200)"
 	@curl -kIs https://127.0.0.1/ | head -n1 | grep -q " 200" && echo "PASS" || (echo "FAIL"; exit 1)
