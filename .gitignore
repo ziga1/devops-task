@@ -1,0 +1,27 @@
+# env & secrets
+.env
+*.key
+*.crt
+*.pem
+*.b64
+
+# local data / runtime
+mysqldata/
+tmp/
+.cache/
+logs/
+
+# dependencies (if ever added)
+vendor/
+node_modules/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# archives
+*.zip
+*.tar
+*.tar.gz
